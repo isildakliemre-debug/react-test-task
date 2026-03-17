@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Menu, { Item as MenuItem } from 'rc-menu';
 import Dropdown from 'rc-dropdown';
@@ -7,25 +7,30 @@ import debounce from 'lodash/debounce';
 
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { StatusBlock } from '@/shared/ui/StatusBlock/StatusBlock';
-import { loadRecipes, recipesActions, selectVisibleRecipes } from './recipesSlice';
+import { loadRecipes, recipesActions } from './recipesSlice';
 
 import styles from './RecipesPage.module.scss';
 import 'rc-menu/assets/index.css';
+import 'rc-dropdown/assets/index.css';
+import useRecipesQuery from './query';
+
+const pageSizeOptions=[
+10,20,50
+]
 
 export function RecipesPage() {
+  const [pageSelectorVisible, setPageSelectorVisible]= useState(false)
   const dispatch = useAppDispatch();
-  const { status, error, page, pageSize, total, query } = useAppSelector((s) => s.recipes);
-  const items = useAppSelector(selectVisibleRecipes);
-
-  useEffect(() => {
-    dispatch(loadRecipes());
-  }, [dispatch, page, pageSize]);
-
-  // NOTE: debouncedSetQuery is here, but re-fetch and URL sync are intentionally left as interview challenges.
+  const { page, pageSize, query } = useAppSelector((s) => s.recipes);
   const debouncedSetQuery = useMemo(
-    () => debounce((value: string) => dispatch(recipesActions.setQuery(value)), 300),
-    [dispatch],
+      () => debounce((value: string) => dispatch(recipesActions.setQuery(value)), 300),
+      [dispatch],
   );
+  const skip = (page - 1) * pageSize;
+  const limit = pageSize;
+  const {data, status, error } = useRecipesQuery({query, skip, limit})
+  const items= data?.recipes ?? []
+  const total= data?.total ?? 0
 
   useEffect(() => () => debouncedSetQuery.cancel(), [debouncedSetQuery]);
 
@@ -43,6 +48,19 @@ export function RecipesPage() {
     </Menu>
   );
 
+  const pageSizeSelector = (
+    <Menu
+      onSelect={(value) => dispatch(recipesActions.setPageSize(value.key as number))}
+    >
+      {pageSizeOptions.map(sizeOption=> (
+         <MenuItem key={sizeOption}>{sizeOption}</MenuItem>
+      ))
+      }
+    </Menu>
+  );
+
+
+
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
@@ -56,22 +74,28 @@ export function RecipesPage() {
           }}
         />
 
-        <Dropdown overlay={sortMenu} trigger={['click']}>
+        <Dropdown overlay={sortMenu} trigger={['click']} >
           <button className={styles.sortBtn} type="button">
             Sort (TODO)
           </button>
         </Dropdown>
+
+      <Dropdown overlay={pageSizeSelector} trigger={['click']} visible={pageSelectorVisible} onVisibleChange={(visible)=> setPageSelectorVisible(visible)}>
+          <button type='button'>try</button>
+      </Dropdown>
       </div>
 
-      {status === 'loading' && (
+
+
+      {status === 'pending' && (
         <StatusBlock variant="loading" title="Loading" description="Fetching recipes…" />
       )}
 
-      {status === 'failed' && (
+      {status === 'error' && (
         <StatusBlock
           variant="error"
           title="Error"
-          description={error ?? 'Something went wrong'}
+          description={error.message ?? 'Something went wrong'}
           action={
             <button type="button" onClick={() => dispatch(loadRecipes())}>
               Retry
@@ -80,11 +104,11 @@ export function RecipesPage() {
         />
       )}
 
-      {status === 'succeeded' && items.length === 0 && (
+      {status === 'success' && items.length === 0 && (
         <StatusBlock variant="empty" title="No results" description="Try another search query." />
       )}
 
-      {status === 'succeeded' && items.length > 0 && (
+      {status === 'success' && items.length > 0 && (
         <>
           <ul className={styles.grid}>
             {items.map((r) => (

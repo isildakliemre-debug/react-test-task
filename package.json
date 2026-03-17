@@ -2,6 +2,7 @@
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",
     "@rsbuild/plugin-react": "^1.4.3",
+    "@tanstack/react-query": "^5.90.21",
     "axios": "^1.13.5",
     "classnames": "^2.5.1",
     "clsx": "^2.1.1",
